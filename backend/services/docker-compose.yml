@@ -1,0 +1,147 @@
+# backend/Dockerfile
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY services/qe_copilot /app
+
+# Create necessary directories
+RUN mkdir -p /app/logs /workspace
+
+# Run database migrations
+COPY scripts/start.sh /scripts/start.sh
+RUN chmod +x /scripts/start.sh
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Start application
+CMD ["/scripts/start.sh"]
+
+---
+
+# backend/scripts/start.sh
+
+#!/bin/bash
+set -e
+
+echo "Starting QECopilot Backend Service..."
+
+# Wait for PostgreSQL
+echo "Waiting for PostgreSQL..."
+until PGPASSWORD=$POSTGRES_PASSWORD psql -h "postgres" -U "qubeai" -c '\q'; do
+  >&2 echo "PostgreSQL is unavailable - sleeping"
+  sleep 2
+done
+
+echo "PostgreSQL is ready!"
+
+# Run database migrations
+echo "Running database migrations..."
+cd /app
+alembic upgrade head
+
+# Load initial knowledge base
+echo "Loading knowledge base..."
+python -c "
+from rag.knowledge_base import KnowledgeBase
+from rag.rag_service import RAGService
+import asyncio
+
+async def load_kb():
+    rag = RAGService()
+    kb = KnowledgeBase(rag)
+    await kb.load_testing_patterns()
+
+asyncio.run(load_kb())
+"
+
+# Start the application
+echo "Starting FastAPI application..."
+uvicorn main:app --host 0.0.0.0 --port 8080 --workers ${WORKERS:-4} --log-level ${LOG_LEVEL:-info}
+
+---
+
+# backend/scripts/pull_models.sh
+
+#!/bin/sh
+echo "Pulling Ollama models..."
+
+# Pull recommended models for testing
+ollama pull llama2
+ollama pull codellama
+ollama pull mistral
+ollama pull phi
+
+echo "Models pulled successfully!"
+
+# Keep container running
+tail -f /dev/null
+
+---
+
+# backend/scripts/init.sql
+
+-- Initial database schema setup
+CREATE SCHEMA IF NOT EXISTS qube_ai;
+
+-- Enable extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Create enum types
+CREATE TYPE test_type AS ENUM ('functional', 'non_functional', 'api', 'ui', 'ux', 'security', 'performance');
+CREATE TYPE priority_type AS ENUM ('critical', 'high', 'medium', 'low');
+CREATE TYPE severity_type AS ENUM ('critical', 'major', 'minor', 'trivial');
+
+-- Add indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
+CREATE INDEX IF NOT EXISTS idx_requirements_project ON requirements(project_id);
+CREATE INDEX IF NOT EXISTS idx_test_cases_project ON test_cases(project_id);
+CREATE INDEX IF NOT EXISTS idx_test_cases_requirement ON test_cases(requirement_id);
+CREATE INDEX IF NOT EXISTS idx_bugs_project ON bugs(project_id);
+
+-- Create default admin user table (for Phase 1)
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default admin user (password: Admin)
+INSERT INTO users (username, password_hash, is_admin) 
+VALUES ('Admin', crypt('Admin', gen_salt('bf')), TRUE)
+ON CONFLICT (username) DO NOTHING;
+
+---
+
+# backend/alembic.ini
+
+[alembic]
+script_location = alembic
+prepend_sys_path = .
+version_path_separator = os
+sqlalchemy.url =
