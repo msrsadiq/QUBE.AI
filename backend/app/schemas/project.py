@@ -1,71 +1,57 @@
-from pydantic import BaseModel
 from typing import Optional
+from pydantic import BaseModel, HttpUrl
 from datetime import datetime
-
 
 class ProjectBase(BaseModel):
     """Base project schema"""
     name: str
-    domain: str
     brief: str
+    domain: str
     tech_stack: Optional[str] = None
-    figma_url: Optional[str] = None
-    figma_credentials_encrypted: Optional[str] = None
-    compliance: Optional[str] = None
-
+    compliances: Optional[str] = None
 
 class ProjectCreate(ProjectBase):
     """Project creation schema"""
-    pass
-
+    figma_url: Optional[str] = None
+    figma_credentials: Optional[str] = None
 
 class ProjectUpdate(BaseModel):
     """Project update schema"""
     name: Optional[str] = None
-    domain: Optional[str] = None
     brief: Optional[str] = None
+    domain: Optional[str] = None
     tech_stack: Optional[str] = None
     figma_url: Optional[str] = None
-    figma_credentials_encrypted: Optional[str] = None
-    compliance: Optional[str] = None
+    figma_credentials: Optional[str] = None
+    compliances: Optional[str] = None
 
+class ProjectListResponse(ProjectBase):
+    """Project list response schema"""
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        orm_mode = True
 
 class ProjectResponse(ProjectBase):
-    """Project response schema"""
+    """Detailed project response schema"""
     id: int
-    created_by: int
+    user_id: int
+    figma_url: Optional[str] = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime
     
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-
-class ProjectSettingsBase(BaseModel):
-    """Base project settings schema"""
-    llm_provider: str = "ollama"
-    llm_model: str = "llama2"
-    api_key_encrypted: Optional[str] = None
-
-
-class ProjectSettingsCreate(ProjectSettingsBase):
-    """Project settings creation schema"""
+class ProjectStats(BaseModel):
+    """Project statistics schema"""
     project_id: int
-
-
-class ProjectSettingsUpdate(BaseModel):
-    """Project settings update schema"""
-    llm_provider: Optional[str] = None
-    llm_model: Optional[str] = None
-    api_key_encrypted: Optional[str] = None
-
-
-class ProjectSettingsResponse(ProjectSettingsBase):
-    """Project settings response schema"""
-    id: int
-    project_id: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
+    project_name: str
+    requirements_count: int
+    test_cases_count: int
+    bugs_count: int
+    automation_scripts: int
+    api_tests: int
+    completion_percentage: float

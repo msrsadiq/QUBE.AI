@@ -1,22 +1,30 @@
-# Core Framework
+# Qube.AI Backend - Minimal Requirements for Windows
+# No compilation needed - all pre-compiled wheels
+
+# Core
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-pydantic==2.5.2
-pydantic-settings==2.1.0
-python-jose[cryptography]==3.3.0
+python-dotenv==1.0.0
 
 # Database
-psycopg[binary]==3.2.12
 sqlalchemy==2.0.23
-alembic==1.13.0
 
-# Security - Updated versions for Python 3.13 compatibility
-passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
+# Authentication
 python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-cryptography==43.0.1
+
+# Data Validation (Windows-friendly versions)
+pydantic==2.4.2  # This version has pre-compiled wheels
+pydantic-settings==2.0.3  # Compatible with pydantic 2.4.2
+
+# HTTP
+httpx==0.25.2
+requests==2.31.0
+
+# Email
+email-validator==2.0.0  # Older stable version
 
 # Utilities
-python-dotenv==1.0.1
-psycopg2-binary==2.9.9
+python-dateutil==2.8.2
+aiofiles==23.2.1

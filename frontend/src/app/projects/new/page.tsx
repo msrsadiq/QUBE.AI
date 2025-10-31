@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore, useProjectStore } from '@/lib/store';
 import { projectsAPI } from '@/lib/api';
 import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from '@/components/layout/Sidebar';
 import { Sparkles } from 'lucide-react';
 
 export default function NewProjectPage() {

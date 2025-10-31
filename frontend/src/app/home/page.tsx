@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore, useProjectStore } from '@/lib/store';
 import { projectsAPI } from '@/lib/api';
 import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from '@/components/layout/Sidebar';
 import ProjectCard from '@/components/ProjectCard';
 import { PlusCircle } from 'lucide-react';
 
