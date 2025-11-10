@@ -1,93 +1,98 @@
 """
-Database initialization utility.
-Seeds default admin user for Phase 1.
+Database Initialization Script
+------------------------------
+Creates all database tables and seeds default admin user.
+
+This script:
+- Drops existing tables (for clean development reset)
+- Creates all tables based on SQLAlchemy models
+- Seeds default admin user (Admin/Admin)
+
+Usage:
+    python -m app.db_utils.init_db
+
+Models Created:
+    - users: Authentication and user management
+    - projects: Project information and metadata
+    - llm_configs: LLM configurations per project (future)
+
+Note: This is a destructive operation in development.
+      In production, use Alembic migrations instead.
 """
 
-from sqlalchemy.orm import Session
-from ..core.database import SessionLocal, engine, Base
-from ..core.security import get_password_hash
-from ..core.config import settings
-from ..models.user import User
+from app.core.database import engine, SessionLocal, Base
+from app.models.user import User
+from app.models.project import Project  # Import to register with Base
+from app.core.security import get_password_hash
 
-
-def create_admin_user(db: Session):
-    """
-    Create default admin user if it doesn't exist.
-    
-    Args:
-        db: Database session
-        
-    Creates:
-        Admin user with credentials from environment variables
-        Default: username="Admin", password="Admin"
-        
-    Note:
-        - Only creates user if username doesn't exist
-        - Passwords are always hashed before storage
-        - Safe to run multiple times (idempotent)
-    """
-    
-    # Check if admin user already exists
-    existing_user = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
-    
-    if existing_user:
-        print(f"ℹ️  Admin user '{settings.ADMIN_USERNAME}' already exists")
-        return
-    
-    # Create new admin user with hashed password
-    admin_user = User(
-        username=settings.ADMIN_USERNAME,
-        hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
-        full_name="System Administrator",
-        is_active=True
-    )
-    
-    db.add(admin_user)
-    db.commit()
-    db.refresh(admin_user)
-    
-    print(f"✅ Admin user '{settings.ADMIN_USERNAME}' created successfully")
-    print(f"   Username: {settings.ADMIN_USERNAME}")
-    print(f"   Password: {settings.ADMIN_PASSWORD}")
-    print(f"   ⚠️  Change default password in production!")
-
-
-def init_database():
+def init_db():
     """
     Initialize database with tables and default data.
     
-    Flow:
-        1. Create all tables from models
-        2. Seed default admin user
-        
-    Usage:
-        Run this script directly or call from main.py startup event:
-        python -m backend.app.db_utils.init_db
-    """
+    Steps:
+    1. Drop all existing tables (clean slate)
+    2. Create all tables from SQLAlchemy models
+    3. Create default admin user
     
-    print("🔧 Initializing database...")
+    Warning: This drops all existing data!
+    """
+    print("=" * 60)
+    print("Initializing Qube.AI Database...")
+    print("=" * 60)
+    
+    # Drop all existing tables
+    print("\n🗑️  Dropping existing tables...")
+    Base.metadata.drop_all(bind=engine)
+    print("✅ Existing tables dropped")
     
     # Create all tables
+    print("\n🏗️  Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created")
+    print("✅ Tables created successfully:")
+    print("   - users")
+    print("   - projects")
+    print("   - llm_configs (if exists)")
     
     # Create database session
     db = SessionLocal()
     
     try:
-        # Seed default admin user
-        create_admin_user(db)
+        # Check if admin user already exists
+        existing_admin = db.query(User).filter(User.username == "Admin").first()
+        
+        if not existing_admin:
+            # Create default admin user
+            print("\n👤 Creating default admin user...")
+            admin_user = User(
+                username="Admin",
+                email="admin@qubeai.com",
+                hashed_password=get_password_hash("Admin"),
+                is_active=True,
+                is_admin=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("✅ Default admin user created")
+            print("   Username: Admin")
+            print("   Password: Admin")
+            print("   ⚠️  Change password in production!")
+        else:
+            print("\n👤 Admin user already exists - skipping creation")
+        
+        print("\n" + "=" * 60)
+        print("✅ Database initialization complete!")
+        print("=" * 60)
+        print("\n🚀 You can now start the backend server:")
+        print("   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000")
+        print("\n")
+        
+    except Exception as e:
+        print(f"\n❌ Error during initialization: {str(e)}")
+        db.rollback()
+        raise
     finally:
         db.close()
-    
-    print("🎉 Database initialization completed\n")
 
 
 if __name__ == "__main__":
-    """
-    Allow script to be run directly for manual database initialization.
-    
-    Command:
-        python -m backend.app.db_utils.init_db
-    """
-    init_database()
+    init_db()

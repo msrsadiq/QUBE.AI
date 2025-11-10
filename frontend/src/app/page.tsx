@@ -17,25 +17,11 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { authAPI } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 
 /**
  * Login page component.
- * 
- * State:
- * - username: Input value for username field
- * - password: Input value for password field
- * - showPassword: Toggle for password visibility
- * - loading: Loading state during API call
- * - error: Error message to display
- * 
- * Flow:
- * 1. User enters credentials
- * 2. Form submission triggers handleLogin
- * 3. API call to backend /api/auth/login
- * 4. On success: Store token, update auth state, redirect to /home
- * 5. On failure: Display error message
  */
 export default function LoginPage() {
   const router = useRouter();
@@ -50,20 +36,6 @@ export default function LoginPage() {
 
   /**
    * Handle login form submission.
-   * 
-   * @param e - Form event
-   * 
-   * Validation:
-   * - Username and password must not be empty
-   * 
-   * Success Flow:
-   * 1. Call authAPI.login with credentials
-   * 2. Store token and user in auth store
-   * 3. Navigate to home page
-   * 
-   * Error Flow:
-   * 1. Display error message
-   * 2. Keep user on login page
    */
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -79,21 +51,27 @@ export default function LoginPage() {
 
     try {
       // Authenticate with backend
-      const response = await authAPI.login({ username, password });
+      const response = await api.post('/auth/login', {
+        username,
+        password,
+      });
+
+      // Extract data from response
+      const { access_token, username: responseUsername } = response.data;
 
       // Store authentication data
       login(
         {
-          username: response.username,
-          full_name: response.full_name,
+          username: responseUsername,
         },
-        response.access_token
+        access_token
       );
 
       // Redirect to home page
       router.push('/home');
     } catch (err: any) {
       // Handle authentication errors
+      console.error('Login error:', err);
       const errorMessage = err.response?.data?.detail || 'Login failed. Please check your credentials.';
       setError(errorMessage);
     } finally {
@@ -103,9 +81,6 @@ export default function LoginPage() {
 
   /**
    * Toggle password visibility.
-   * 
-   * Switches between password and text input types
-   * to show/hide password characters.
    */
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -160,7 +135,7 @@ export default function LoginPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your username"
-                  className="input-field"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   disabled={loading}
                   autoComplete="username"
                 />
@@ -181,7 +156,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="input-field pr-12"
+                    className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     disabled={loading}
                     autoComplete="current-password"
                   />
@@ -213,11 +188,11 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full btn-primary py-3 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-primary-500 text-white py-3 text-lg font-semibold rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
-                    <div className="spinner w-5 h-5 border-2"></div>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>Signing in...</span>
                   </>
                 ) : (

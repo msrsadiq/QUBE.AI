@@ -1,6 +1,12 @@
 """
-Pydantic schemas for authentication requests and responses.
-Provides data validation and serialization for auth endpoints.
+Authentication Schemas
+---------------------
+Pydantic models for authentication request/response validation.
+
+These schemas handle:
+- Login request validation
+- JWT token response formatting
+- User profile data serialization
 """
 
 from pydantic import BaseModel, Field
@@ -9,32 +15,16 @@ from typing import Optional
 
 class LoginRequest(BaseModel):
     """
-    Schema for user login request.
+    Schema for login request payload.
     
     Attributes:
-        username: User's login username
-        password: User's plain password (transmitted over HTTPS)
-        
-    Validation:
-        - Username: 3-50 characters
-        - Password: 3-100 characters (minimum length for security)
+        username: User's username
+        password: User's password (plain text, will be hashed for comparison)
     """
-    
-    username: str = Field(
-        ...,
-        min_length=3,
-        max_length=50,
-        description="Username for authentication"
-    )
-    password: str = Field(
-        ...,
-        min_length=3,
-        max_length=100,
-        description="Password for authentication"
-    )
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1)
     
     class Config:
-        """Pydantic configuration."""
         json_schema_extra = {
             "example": {
                 "username": "Admin",
@@ -48,41 +38,20 @@ class LoginResponse(BaseModel):
     Schema for successful login response.
     
     Attributes:
-        access_token: JWT token for authenticated requests
-        token_type: Type of token (always "bearer")
+        access_token: JWT token for authentication
+        token_type: Token type (always "bearer")
         username: Authenticated user's username
-        full_name: User's display name (if available)
-        
-    Usage:
-        Client should store access_token and include it in subsequent requests:
-        Authorization: Bearer <access_token>
     """
-    
-    access_token: str = Field(
-        ...,
-        description="JWT access token for authentication"
-    )
-    token_type: str = Field(
-        default="bearer",
-        description="Token type (always 'bearer')"
-    )
-    username: str = Field(
-        ...,
-        description="Authenticated username"
-    )
-    full_name: Optional[str] = Field(
-        None,
-        description="User's full display name"
-    )
+    access_token: str
+    token_type: str
+    username: str
     
     class Config:
-        """Pydantic configuration."""
         json_schema_extra = {
             "example": {
                 "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "token_type": "bearer",
-                "username": "Admin",
-                "full_name": "System Administrator"
+                "username": "Admin"
             }
         }
 
@@ -93,27 +62,25 @@ class UserResponse(BaseModel):
     
     Attributes:
         id: User's unique identifier
-        username: User's login username
-        full_name: User's display name
+        username: User's username
+        email: User's email (optional)
         is_active: Whether user account is active
-        
-    Note:
-        Excludes sensitive information like hashed_password
+        is_admin: Whether user has admin privileges
     """
-    
     id: int
     username: str
-    full_name: Optional[str] = None
+    email: Optional[str] = None
     is_active: bool
+    is_admin: bool
     
     class Config:
-        """Pydantic configuration."""
         from_attributes = True
         json_schema_extra = {
             "example": {
                 "id": 1,
                 "username": "Admin",
-                "full_name": "System Administrator",
-                "is_active": True
+                "email": "admin@qubeai.com",
+                "is_active": True,
+                "is_admin": True
             }
         }

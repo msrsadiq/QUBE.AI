@@ -1,14 +1,28 @@
 """
-Dependency injection utilities for FastAPI routes.
-Provides reusable dependencies for authentication and database access.
+Dependency Injection Utilities
+------------------------------
+Provides reusable dependencies for FastAPI routes.
+
+Dependencies:
+- get_db: Database session management
+- get_current_user: Extract and validate authenticated user from JWT
+- oauth2_scheme: OAuth2 password bearer token scheme
+
+Usage in Routes:
+    @router.get("/protected")
+    def protected_route(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ):
+        return {"user": current_user.username}
 """
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from .database import get_db
-from .security import decode_access_token
-from ..models.user import User
+from app.core.database import get_db
+from app.core.security import decode_access_token
+from app.models.user import User
 
 
 # OAuth2 scheme for token authentication
@@ -32,11 +46,6 @@ async def get_current_user(
         
     Raises:
         HTTPException: 401 if token is invalid or user not found
-        
-    Usage:
-        @app.get("/protected")
-        def protected_route(current_user: User = Depends(get_current_user)):
-            return {"user": current_user.username}
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -60,30 +69,3 @@ async def get_current_user(
         raise credentials_exception
     
     return user
-
-
-async def get_current_active_user(
-    current_user: User = Depends(get_current_user)
-) -> User:
-    """
-    Dependency that ensures the current user is active.
-    
-    Args:
-        current_user: User object from get_current_user dependency
-        
-    Returns:
-        User: Active user object
-        
-    Raises:
-        HTTPException: 400 if user is inactive
-        
-    Note:
-        Currently all users are active. This is prepared for future
-        user management features where users can be deactivated.
-    """
-    if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
-    return current_user
