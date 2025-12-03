@@ -30,6 +30,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, projects
 from app.api.routes import llm_config
+from app.core.config import settings
 from app.core.database import engine, Base
 
 # Create all database tables
@@ -39,9 +40,9 @@ Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI application with metadata
 app = FastAPI(
-    title="Qube.AI API",
+    title=settings.APP_NAME,
     description="Agentic AI Testing Platform - Backend API for multi-agent QA automation",
-    version="1.0.0",
+    version=settings.APP_VERSION,
     docs_url="/docs",  # Swagger UI
     redoc_url="/redoc",  # ReDoc documentation
     contact={
@@ -87,8 +88,8 @@ def root():
         
     Example Response:
         {
-            "message": "Qube.AI API",
-            "version": "1.0.0",
+            "message": f"{settings.APP_NAME} API",
+            "version": settings.APP_VERSION,
             "status": "active"
         }
     """
@@ -118,7 +119,10 @@ def health_check():
         - Load balancer health checks
         - Monitoring systems
     """
-    return {"status": "healthy"}
+    return {
+            "status": "healthy",
+            "version": settings.APP_VERSION
+        }
 
 
 # Optional: Add startup event for logging
@@ -159,3 +163,15 @@ async def shutdown_event():
     print("=" * 50)
     print("Qube.AI API Server Shutting Down...")
     print("=" * 50)
+
+if __name__ == "__main__":
+    import uvicorn
+    print("\n" + "="*50)
+    print(f"{settings.APP_NAME} API Server Starting...")
+    print("="*50)
+    print(f"📋 API Documentation: http://localhost:8000/docs")
+    print(f"🔐 Authentication: JWT tokens required for protected routes")
+    print(f"🗄️  Database: SQLite (development) / PostgreSQL (production)")
+    print("="*50 + "\n")
+    
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
