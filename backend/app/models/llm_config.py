@@ -106,7 +106,8 @@ class LLMConfig(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    project = relationship("Project", back_populates="llm_configs")
+    from sqlalchemy.orm import backref
+    project = relationship("Project", backref=backref("llm_configs", lazy="selectin", cascade="all, delete-orphan"))
     fallback_config = relationship("LLMConfig", remote_side=[id], uselist=False)
     
     def __repr__(self):

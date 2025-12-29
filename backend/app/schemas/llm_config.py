@@ -2,18 +2,9 @@
 LLM Configuration Schemas
 -------------------------
 Pydantic schemas for request validation and response serialization.
-
-Schemas:
-- LLMConfigBase: Base fields shared across create/update
-- LLMConfigCreate: Fields required for creating new config
-- LLMConfigUpdate: Fields that can be updated (all optional)
-- LLMConfigResponse: Full response including computed fields
-- LLMTestRequest: Schema for testing LLM before saving
-- LLMTestResponse: Response from test operation
-- TokenUsageResponse: Real-time token usage information
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict, validator
 from typing import Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -46,22 +37,12 @@ class LLMConfigBase(BaseModel):
     """
     Base schema with common LLM configuration fields.
     
-    Attributes:
-        name: User-friendly name for this configuration
-        model_name: Actual model identifier
-        provider: LLM provider type
-        api_endpoint: Base URL for API calls
-        api_key: Optional API key (will be encrypted)
-        model_parameters: Model-specific parameters
-        token_limit_daily: Daily token usage limit (0 = unlimited)
-        token_limit_monthly: Monthly token usage limit (0 = unlimited)
-        is_active: Whether configuration is active
-        is_default: Whether this is the default config
-        fallback_config_id: ID of fallback configuration
-        cache_enabled: Enable response caching
-        cache_ttl_seconds: Cache time-to-live
-        cost_per_1k_tokens: Cost per 1000 tokens
+    Note: model_config is used to disable protected namespace warnings
+    for fields starting with "model_"
     """
+    
+    # Disable protected namespace warnings for "model_" prefix
+    model_config = ConfigDict(protected_namespaces=())
     
     name: str = Field(..., min_length=1, max_length=255, description="Configuration name")
     model_name: str = Field(..., min_length=1, max_length=255, description="Model identifier")
@@ -98,11 +79,7 @@ class LLMConfigBase(BaseModel):
 
 
 class LLMConfigCreate(LLMConfigBase):
-    """
-    Schema for creating a new LLM configuration.
-    Inherits all fields from LLMConfigBase with project_id added.
-    """
-    
+    """Schema for creating a new LLM configuration."""
     project_id: int = Field(..., gt=0, description="Project ID this config belongs to")
 
 
@@ -111,6 +88,7 @@ class LLMConfigUpdate(BaseModel):
     Schema for updating an existing LLM configuration.
     All fields are optional.
     """
+    model_config = ConfigDict(protected_namespaces=())
     
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     model_name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -129,10 +107,8 @@ class LLMConfigUpdate(BaseModel):
 
 
 class LLMConfigResponse(LLMConfigBase):
-    """
-    Schema for LLM configuration responses.
-    Includes all fields plus computed/status fields.
-    """
+    """Schema for LLM configuration responses."""
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
     
     id: int
     project_id: int
@@ -148,56 +124,15 @@ class LLMConfigResponse(LLMConfigBase):
     created_at: datetime
     updated_at: Optional[datetime]
     
-    # Computed fields
     daily_usage_percentage: Optional[float] = None
     monthly_usage_percentage: Optional[float] = None
     estimated_cost_today: Optional[float] = None
     estimated_cost_month: Optional[float] = None
 
-    class Config:
-        from_attributes = True
-
-    @validator('daily_usage_percentage', always=True)
-    def compute_daily_usage_percentage(cls, v, values):
-        """Calculate percentage of daily limit used."""
-        if values.get('token_limit_daily', 0) > 0:
-            usage = values.get('token_usage_today', 0)
-            limit = values['token_limit_daily']
-            return round((usage / limit) * 100, 2)
-        return None
-
-    @validator('monthly_usage_percentage', always=True)
-    def compute_monthly_usage_percentage(cls, v, values):
-        """Calculate percentage of monthly limit used."""
-        if values.get('token_limit_monthly', 0) > 0:
-            usage = values.get('token_usage_month', 0)
-            limit = values['token_limit_monthly']
-            return round((usage / limit) * 100, 2)
-        return None
-
-    @validator('estimated_cost_today', always=True)
-    def compute_estimated_cost_today(cls, v, values):
-        """Calculate estimated cost for today's usage."""
-        usage = values.get('token_usage_today', 0)
-        cost_per_1k = values.get('cost_per_1k_tokens', 0.0)
-        return round((usage / 1000) * cost_per_1k, 4)
-
-    @validator('estimated_cost_month', always=True)
-    def compute_estimated_cost_month(cls, v, values):
-        """Calculate estimated cost for this month's usage."""
-        usage = values.get('token_usage_month', 0)
-        cost_per_1k = values.get('cost_per_1k_tokens', 0.0)
-        return round((usage / 1000) * cost_per_1k, 4)
-
 
 class LLMTestRequest(BaseModel):
-    """
-    Schema for testing an LLM configuration.
-    
-    Attributes:
-        prompt: Test prompt to send to the model
-        stream: Whether to stream the response
-    """
+    """Schema for testing an LLM configuration."""
+    model_config = ConfigDict(protected_namespaces=())
     
     prompt: str = Field(
         default="Hello! Please respond with a brief introduction to software testing.",
@@ -207,16 +142,8 @@ class LLMTestRequest(BaseModel):
 
 
 class LLMTestResponse(BaseModel):
-    """
-    Schema for LLM test response.
-    
-    Attributes:
-        success: Whether test was successful
-        response: Model response text
-        tokens_used: Number of tokens consumed
-        response_time_ms: Response time in milliseconds
-        error: Error message if test failed
-    """
+    """Schema for LLM test response."""
+    model_config = ConfigDict(protected_namespaces=())
     
     success: bool
     response: Optional[str] = None
@@ -227,12 +154,7 @@ class LLMTestResponse(BaseModel):
 
 
 class TokenUsageResponse(BaseModel):
-    """
-    Schema for real-time token usage information.
-    
-    Used by WebSocket for broadcasting usage updates.
-    """
-    
+    """Schema for real-time token usage information."""
     config_id: int
     project_id: int
     token_usage_today: int
@@ -247,17 +169,7 @@ class TokenUsageResponse(BaseModel):
 
 
 class HealthCheckResponse(BaseModel):
-    """
-    Schema for health check response.
-    
-    Attributes:
-        config_id: Configuration ID
-        status: Health status
-        response_time_ms: Response time
-        last_check: Timestamp of check
-        message: Status message
-    """
-    
+    """Schema for health check response."""
     config_id: int
     status: HealthStatus
     response_time_ms: Optional[int]

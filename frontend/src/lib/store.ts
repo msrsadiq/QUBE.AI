@@ -1,78 +1,68 @@
 /**
- * Global state management using Zustand.
+ * Zustand Store
+ * -------------
+ * Global state management for authentication.
  * 
- * Manages:
- * - Authentication state (user, token)
- * - Persistent storage via localStorage
+ * UPDATED: Added email and is_admin to user object.
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
-/**
- * User state interface
- */
 interface User {
+  id: number;
   username: string;
   email?: string;
+  is_admin?: boolean;
 }
 
-/**
- * Authentication store interface
- */
 interface AuthState {
-  // State
   user: User | null;
   token: string | null;
-  
-  // Actions
-  login: (user: User, token: string) => void;
+  isAuthenticated: boolean;
+  login: (token: string, user: User) => void;
   logout: () => void;
-  setUser: (user: User) => void;
+  initializeAuth: () => void;
 }
 
-/**
- * Authentication store with persistent storage.
- */
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      // Initial State
-      user: null,
-      token: null,
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  token: null,
+  isAuthenticated: false,
 
-      /**
-       * Handle successful login.
-       * 
-       * @param user - User profile data
-       * @param token - JWT access token
-       */
-      login: (user: User, token: string) => {
-        localStorage.setItem('token', token);
-        set({ user, token });
-      },
+  /**
+   * Login user and store credentials
+   */
+  login: (token: string, user: User) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    set({ user, token, isAuthenticated: true });
+  },
 
-      /**
-       * Handle user logout.
-       * 
-       * Clears all authentication data.
-       */
-      logout: () => {
+  /**
+   * Logout user and clear credentials
+   */
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    set({ user: null, token: null, isAuthenticated: false });
+  },
+
+  /**
+   * Initialize auth state from localStorage
+   */
+  initializeAuth: () => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        set({ user, token, isAuthenticated: true });
+      } catch (error) {
+        console.error('Failed to parse user from localStorage:', error);
         localStorage.removeItem('token');
-        set({ user: null, token: null });
-      },
-
-      /**
-       * Update user profile data.
-       * 
-       * @param user - Updated user data
-       */
-      setUser: (user: User) => {
-        set({ user });
-      },
-    }),
-    {
-      name: 'qubeai-auth-storage',
+        localStorage.removeItem('user');
+      }
     }
-  )
-);
+  },
+}));

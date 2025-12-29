@@ -30,7 +30,10 @@
  *   - Test Cases Home
  *   - Page Objects
  * - Logout (always at bottom)
+ * Context-aware navigation sidebar.
+ * UPDATED: Added LLM Configuration link for project context.
  */
+
 'use client';
 
 import Link from 'next/link';

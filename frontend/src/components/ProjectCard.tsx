@@ -1,52 +1,47 @@
 /**
  * Project Card Component
  * ----------------------
- * Card displaying project summary information on the home page.
- * 
- * Features:
- * - Displays project ID, name, domain, and creation date
- * - Hover effect with shadow elevation
- * - Kebab menu (⋮) for edit/delete actions
- * - Click-through navigation to project dashboard
- * 
- * Props:
- * - project: Project data (id, name, domain, created_at)
- * - onDelete: Callback when delete is clicked
- * - onClick: Callback when card is clicked
- * 
- * Design:
- * - Teal border (#17A2B8)
- * - Responsive card layout
- * - Kebab menu positioned top-right
- * - Formatted date display
- * 
- * User Interactions:
- * - Click card → Navigate to project dashboard
- * - Click kebab menu → Show edit/delete options
- * - Click edit → Navigate to edit page
- * - Click delete → Show confirmation and delete
+ * Compact project card with essential information.
  */
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-
-interface Project {
-  id: number;
-  name: string;
-  domain: string;
-  created_at: string;
-}
+import { useRouter } from 'next/navigation';
 
 interface ProjectCardProps {
-  project: Project;
-  onDelete: (id: number) => void;
+  project: {
+    id: number;
+    project_code: string;
+    name: string;
+    domain: string;
+    brief: string;
+    created_at: string;
+  };
+  onDelete: () => void;
   onEdit: () => void;
-  onClick: () => void;
 }
 
-export default function ProjectCard({ project, onDelete, onEdit, onClick }: ProjectCardProps) {
+export default function ProjectCard({ project, onDelete, onEdit }: ProjectCardProps) {
+  const router = useRouter();
+  const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -57,71 +52,50 @@ export default function ProjectCard({ project, onDelete, onEdit, onClick }: Proj
     });
   };
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-
-    if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [menuOpen]);
-
-  const handleMenuClick = (e: React.MouseEvent, action: 'edit' | 'delete') => {
-    e.stopPropagation();
-    setMenuOpen(false); // Close menu immediately
-    
-    if (action === 'delete') {
-      onDelete(project.id);
-    } else if (action === 'edit') {
-      onEdit();
-    }
+  const handleCardClick = () => {
+    router.push(`/projects/${project.id}`);
   };
 
-  const toggleMenu = (e: React.MouseEvent) => {
+  const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setMenuOpen(!menuOpen);
+    setShowMenu(false);
+    onEdit();
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    onDelete();
   };
 
   return (
     <div
-      onClick={onClick}
-      className="bg-white border-2 border-primary-500 rounded-lg p-6 cursor-pointer hover:shadow-lg transition-shadow relative"
-      role="button"
-      tabIndex={0}
-      onKeyPress={(e) => e.key === 'Enter' && onClick()}
-      aria-label={`Open project ${project.name}`}
+      onClick={handleCardClick}
+      className="bg-white rounded-lg border-2 border-[#17a2b8] hover:shadow-lg transition-shadow cursor-pointer p-4 relative h-32"
     >
       {/* Kebab Menu */}
-      <div className="absolute top-4 right-4" ref={menuRef}>
+      <div className="absolute top-2 right-2" ref={menuRef}>
         <button
-          onClick={toggleMenu}
-          className="text-gray-600 hover:text-gray-800 text-xl p-2 hover:bg-gray-100 rounded"
-          aria-label="Project options"
-          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMenu(!showMenu);
+          }}
+          className="text-gray-400 hover:text-gray-600 p-1"
         >
-          ⋮
+          <span className="text-xl">⋮</span>
         </button>
-        
-        {menuOpen && (
-          <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded shadow-lg z-10">
+
+        {showMenu && (
+          <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg py-1 z-10 border border-gray-200">
             <button
-              onClick={(e) => handleMenuClick(e, 'edit')}
-              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
-              type="button"
+              onClick={handleEdit}
+              className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-gray-700"
             >
               Edit
             </button>
             <button
-              onClick={(e) => handleMenuClick(e, 'delete')}
-              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-red-600 transition-colors"
-              type="button"
+              onClick={handleDelete}
+              className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
             >
               Delete
             </button>
@@ -129,18 +103,25 @@ export default function ProjectCard({ project, onDelete, onEdit, onClick }: Proj
         )}
       </div>
 
-      <div className="mb-2">
-        <span className="text-sm text-gray-500">ID: {project.id}</span>
-      </div>
-      
-      <h3 className="text-xl font-bold text-gray-800 mb-2 pr-8">
-        {project.name}
-      </h3>
-      
-      <p className="text-gray-600 mb-4">{project.domain}</p>
-      
-      <div className="text-sm text-gray-500">
-        Created: {formatDate(project.created_at)}
+      {/* Project Info - Compact Layout */}
+      <div className="flex flex-col h-full justify-between pr-8">
+        <div>
+          <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">
+            {project.name}
+          </h3>
+          
+          <span className="inline-block px-2 py-0.5 bg-[#17a2b8] text-white text-xs rounded-full">
+            {project.domain}
+          </span>
+        </div>
+
+        {/* Footer with Code */}
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span className="font-mono font-semibold text-[#17a2b8]">
+            #{project.project_code}
+          </span>
+          <span>{formatDate(project.created_at)}</span>
+        </div>
       </div>
     </div>
   );

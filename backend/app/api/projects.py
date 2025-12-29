@@ -1,182 +1,132 @@
 """
-Project API Routes
+Projects API Routes
 ------------------
-FastAPI router for project CRUD operations.
-
-This module defines REST API endpoints for managing projects:
-    POST   /api/projects/          - Create a new project
-    GET    /api/projects/          - List all projects (paginated)
-    GET    /api/projects/search    - Search projects by name/domain
-    GET    /api/projects/{id}      - Get a specific project
-    PUT    /api/projects/{id}      - Update a project
-    DELETE /api/projects/{id}      - Delete a project
-
-All routes require authentication (JWT token in Authorization header).
+CRUD operations for project management.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+import logging
+
 from app.core.dependencies import get_db, get_current_user
-from app.schemas.project import (
-    ProjectCreate, 
-    ProjectUpdate, 
-    ProjectResponse,
-    ProjectListResponse
-)
-from app.services.project_service import ProjectService
 from app.models.user import User
+from app.models.project import Project
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
 
-# Create router with prefix and tags
-router = APIRouter(prefix="/projects", tags=["projects"])
+# Setup logging
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
-def create_project(
-    project: ProjectCreate,
+@router.post("/", response_model=ProjectResponse, status_code=201)
+async def create_project(
+    project_data: ProjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Create a new project.
+    """Create a new project with auto-generated 4-digit code."""
+    # Generate unique project code
+    project_code = Project.generate_project_code(db)
+    logger.info(f"Generated project code: {project_code}")
     
-    Args:
-        project: Project creation data
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        ProjectResponse: Created project with ID and timestamps
-    """
-    return ProjectService.create_project(db, project, current_user.id)
+    # Create project with generated code
+    db_project = Project(
+        project_code=project_code,
+        **project_data.dict(),
+        created_by=current_user.id
+    )
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    
+    # Debug log
+    logger.info(f"Created project: id={db_project.id}, code={db_project.project_code}, name={db_project.name}")
+    
+    return db_project
 
 
-@router.get("/", response_model=List[ProjectListResponse])
-def get_projects(
+@router.get("/", response_model=List[ProjectResponse])
+async def get_projects(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Get all projects (paginated).
+    """Get all projects for current user."""
+    projects = db.query(Project).filter(
+        Project.created_by == current_user.id
+    ).order_by(Project.created_at.desc()).offset(skip).limit(limit).all()
     
-    Args:
-        skip: Number of records to skip
-        limit: Maximum number of records to return
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        List[ProjectListResponse]: List of projects sorted by creation date
-    """
-    return ProjectService.get_projects(db, skip, limit)
-
-
-@router.get("/search", response_model=List[ProjectListResponse])
-def search_projects(
-    q: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Search projects by name or domain.
+    # Debug log
+    for p in projects:
+        logger.info(f"Project: id={p.id}, code={p.project_code}, name={p.name}")
     
-    Args:
-        q: Search query string
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        List[ProjectListResponse]: Matching projects
-    """
-    return ProjectService.search_projects(db, q)
+    return projects
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
-def get_project(
+async def get_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Get a specific project by ID.
+    """Get a specific project by ID."""
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.created_by == current_user.id
+    ).first()
     
-    Args:
-        project_id: Project identifier
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        ProjectResponse: Project details
-        
-    Raises:
-        HTTPException 404: If project not found
-    """
-    project = ProjectService.get_project(db, project_id)
     if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project with ID {project_id} not found"
-        )
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    logger.info(f"Retrieved project: id={project.id}, code={project.project_code}")
+    
     return project
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
-def update_project(
+async def update_project(
     project_id: int,
-    project_update: ProjectUpdate,
+    project_data: ProjectUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Update an existing project.
+    """Update an existing project."""
+    db_project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.created_by == current_user.id
+    ).first()
     
-    Args:
-        project_id: Project identifier
-        project_update: Fields to update
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        ProjectResponse: Updated project
-        
-    Raises:
-        HTTPException 404: If project not found
-    """
-    project = ProjectService.update_project(db, project_id, project_update)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project with ID {project_id} not found"
-        )
-    return project
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Update only provided fields
+    update_data = project_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_project, field, value)
+    
+    db.commit()
+    db.refresh(db_project)
+    return db_project
 
 
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project(
+@router.delete("/{project_id}", status_code=204)
+async def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Delete a project.
+    """Delete a project."""
+    db_project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.created_by == current_user.id
+    ).first()
     
-    Args:
-        project_id: Project identifier
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        None (204 No Content)
-        
-    Raises:
-        HTTPException 404: If project not found
-    """
-    success = ProjectService.delete_project(db, project_id)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project with ID {project_id} not found"
-        )
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    db.delete(db_project)
+    db.commit()
     return None

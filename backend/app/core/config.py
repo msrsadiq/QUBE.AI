@@ -1,14 +1,34 @@
 """
 Configuration module for Qube.AI application.
 Loads environment variables and provides centralized configuration management.
+
+UPDATED: Added support for extra fields and previous phase configurations.
 """
 
 from pydantic_settings import BaseSettings
-from typing import List
+from pydantic import ConfigDict
+from typing import Optional
+
 
 class Settings(BaseSettings):
     """
     Application settings loaded from environment variables.
+    
+    Attributes:
+        APP_NAME: Application name displayed in API docs
+        APP_VERSION: Current version of the application
+        DEBUG: Debug mode flag
+        SECRET_KEY: Secret key for JWT token generation
+        ALGORITHM: Algorithm used for JWT encoding/decoding
+        ACCESS_TOKEN_EXPIRE_MINUTES: Token expiration time in minutes
+        ENCRYPTION_KEY: Encryption key for API key storage
+        DATABASE_URL: Database connection string
+        CORS_ORIGINS: Allowed CORS origins (comma-separated)
+        ADMIN_USERNAME: Default admin username for initial setup
+        ADMIN_PASSWORD: Default admin password for initial setup
+        DEFAULT_LLM_PROVIDER: Default LLM provider
+        DEFAULT_LLM_MODEL: Default LLM model name
+        DEFAULT_LLM_ENDPOINT: Default LLM API endpoint
     """
     
     # Application Configuration
@@ -39,10 +59,19 @@ class Settings(BaseSettings):
     DEFAULT_LLM_MODEL: str = "llama3.1:8b"
     DEFAULT_LLM_ENDPOINT: str = "http://localhost:11434"
     
-    class Config:
-        """Pydantic configuration class."""
-        env_file = ".env"
-        case_sensitive = True
+    # Optional fields from previous phases (will be ignored if not in .env)
+    LOG_LEVEL: Optional[str] = "INFO"
+    BACKEND_CORS_ORIGINS: Optional[str] = None
+    MAX_FILE_SIZE: Optional[int] = None
+    ALLOWED_FILE_TYPES: Optional[str] = None
+    OLLAMA_BASE_URL: Optional[str] = None
+    
+    # Pydantic configuration - allow extra fields to be ignored
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra='ignore'  # Ignore extra fields in .env that aren't defined here
+    )
 
 
 settings = Settings()

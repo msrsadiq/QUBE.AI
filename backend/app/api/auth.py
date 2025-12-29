@@ -1,105 +1,75 @@
 """
-Authentication API endpoints.
-Handles user login, logout, and current user information retrieval.
+Authentication API Routes
+------------------------
+Handles user login and JWT token generation.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from datetime import timedelta
+
+from app.core.dependencies import get_db
 from app.core.security import verify_password, create_access_token
-from app.core.dependencies import get_current_user
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.auth import LoginRequest, LoginResponse, UserResponse
 
-
-# Router for authentication endpoints
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(
-    credentials: LoginRequest,
-    db: Session = Depends(get_db)
-):
+async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     """
-    Authenticate user and generate access token.
+    Authenticate user and return JWT token.
     
     Args:
-        credentials: Login credentials (username and password)
+        credentials: Username and password
         db: Database session
         
     Returns:
-        LoginResponse: Access token and user information
+        JWT access token and user information
         
     Raises:
-        HTTPException 401: If credentials are invalid
+        HTTPException: 401 if credentials are invalid
     """
-    
-    # Fetch user from database
+    # Find user by username
     user = db.query(User).filter(User.username == credentials.username).first()
     
-    # Validate user exists and password is correct
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Incorrect username or password"
+        )
+    
+    # Verify password
+    if not verify_password(credentials.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password"
         )
     
     # Check if user is active
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user account"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive"
         )
     
-    # Generate JWT access token
-    access_token = create_access_token(data={"sub": user.username})
+    # Create access token
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username},
+        expires_delta=access_token_expires
+    )
     
-    # Return authentication response
+    # Return response matching LoginResponse schema
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
-        username=user.username
-    )
-
-
-@router.post("/logout")
-async def logout(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Logout current user.
-    
-    Note:
-        JWT tokens are stateless, so actual logout is handled client-side
-        by removing the token.
-    """
-    
-    return {
-        "message": "Successfully logged out",
-        "username": current_user.username
-    }
-
-
-@router.get("/me", response_model=UserResponse)
-async def get_current_user_info(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get current authenticated user's profile information.
-    
-    Args:
-        current_user: Currently authenticated user from token
-        
-    Returns:
-        UserResponse: User profile data
-    """
-    
-    return UserResponse(
-        id=current_user.id,
-        username=current_user.username,
-        email=current_user.email,
-        is_active=current_user.is_active,
-        is_admin=current_user.is_admin
+        user=UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            is_admin=user.is_admin
+        )
     )
